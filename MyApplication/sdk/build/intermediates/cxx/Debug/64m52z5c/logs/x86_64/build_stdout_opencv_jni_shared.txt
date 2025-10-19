@@ -1,0 +1,2 @@
+ninja: Entering directory `D:\Java_Project-CampusCycle\MyApplication\sdk\.cxx\Debug\64m52z5c\x86_64'
+ninja: no work to do.

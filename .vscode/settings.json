@@ -1,0 +1,7 @@
+{
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar",
+        "c:\\Users\\shiva\\Downloads\\onnxruntime-1.18.0.jar",
+        "c:\\Users\\shiva\\Downloads\\opencv\\build\\java\\opencv-460.jar"
+    ]
+}
