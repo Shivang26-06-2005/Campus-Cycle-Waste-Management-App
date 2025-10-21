@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.google.gms.google.services)
 }
 
 android {
@@ -25,6 +26,7 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -36,14 +38,31 @@ android {
 }
 
 dependencies {
-
+    // AndroidX & UI
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)
     implementation(libs.constraintlayout)
+
+    // OpenCV module
     implementation(project(":sdk"))
+
+    // ONNX Runtime
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.17.0")
+
+    // Google Sign-In
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
+
+    // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+
+    // Import the Firebase BoM - This manages the versions for your Firebase libraries
+    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
+
+    // Declare Firebase dependencies without versions
+    // Use the main artifact instead of the "-ktx" version
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-database")
 }

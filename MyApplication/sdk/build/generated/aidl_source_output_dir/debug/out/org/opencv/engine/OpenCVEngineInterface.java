@@ -1,6 +1,6 @@
 /*
  * This file is auto-generated.  DO NOT MODIFY.
- * Using: D:\AndoidSDK\build-tools\35.0.0\aidl.exe -pD:\AndoidSDK\platforms\android-36\framework.aidl -oD:\Java_Project-CampusCycle\MyApplication\sdk\build\generated\aidl_source_output_dir\debug\out -ID:\Java_Project-CampusCycle\MyApplication\sdk\java\src -ID:\Java_Project-CampusCycle\MyApplication\sdk\src\debug\aidl -dC:\Users\shiva\AppData\Local\Temp\aidl15813246004905185264.d D:\Java_Project-CampusCycle\MyApplication\sdk\java\src\org\opencv\engine\OpenCVEngineInterface.aidl
+ * Using: F:\2.App_Development\Andriod_Studio\sdk\build-tools\35.0.0\aidl.exe -pF:\2.App_Development\Andriod_Studio\sdk\platforms\android-36\framework.aidl -oF:\Java\proj_files\Campus-Cycle-Waste-Management-App\MyApplication\sdk\build\generated\aidl_source_output_dir\debug\out -IF:\Java\proj_files\Campus-Cycle-Waste-Management-App\MyApplication\sdk\java\src -IF:\Java\proj_files\Campus-Cycle-Waste-Management-App\MyApplication\sdk\src\debug\aidl -IC:\Users\Admin\.gradle\caches\8.13\transforms\98d75e0b866b85eabaa9758194c07b4f\transformed\core-1.2.0\aidl -IC:\Users\Admin\.gradle\caches\8.13\transforms\78760f152255c90e69ffb8ac799cb938\transformed\versionedparcelable-1.1.0\aidl -dC:\Users\Admin\AppData\Local\Temp\aidl18132896802659202179.d F:\Java\proj_files\Campus-Cycle-Waste-Management-App\MyApplication\sdk\java\src\org\opencv\engine\OpenCVEngineInterface.aidl
  */
 package org.opencv.engine;
 /** Class provides a Java interface for OpenCV Engine Service. It's synchronous with native OpenCVEngine class. */

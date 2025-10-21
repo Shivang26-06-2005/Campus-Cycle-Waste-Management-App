@@ -1,174 +1,176 @@
 package com.example.myapplication;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.location.Location;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.text.TextUtils;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
 import org.opencv.imgproc.Imgproc;
 
-import ai.onnxruntime.OnnxTensor;
-import ai.onnxruntime.OrtEnvironment;
-import ai.onnxruntime.OrtSession;
-
 import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.util.Collections;
+import java.util.Objects;
+
+import ai.onnxruntime.OnnxTensor;
+import ai.onnxruntime.OrtEnvironment;
+import ai.onnxruntime.OrtException;
+import ai.onnxruntime.OrtSession;
 
 public class MainActivity extends AppCompatActivity {
-
-    private static final int REQUEST_CAMERA = 100;
-    private static final int REQUEST_GALLERY = 101;
+    // Request codes
+    private static final int REQUEST_CAMERA = 101;
+    private static final int REQUEST_GALLERY = 102;
+    private static final int REQUEST_LOCATION_PERMISSION = 1;
+    private static final int REQUEST_CAMERA_PERMISSION = 100;
     private static final int IMG_SIZE = 224;
 
-    private ImageView imgPreview;
-    private TextView tvResult;
+    // UI Views
+    private ImageView imageView;
+    private TextView tvPrediction;
     private EditText etComplaint;
-    private Button btnSubmitComplaint, btnGetLocation, btnDashboard, btnStatus, btnProfile;
-    private OrtSession session;
-    private OrtEnvironment env;
 
+    // --- Add Firebase Auth and Listener ---
+    private FirebaseAuth mAuth;
+    private FirebaseAuth.AuthStateListener mAuthListener;
+
+    // Helper classes and ONNX Runtime
     private ComplainActivity complaintManager;
     private LocationManagerHelper locationHelper;
+    private OrtEnvironment env;
+    private OrtSession session;
 
-    private final String[] CLASS_NAMES = {"cardboard", "glass", "metal", "paper", "plastic", "trash"};
+    // Model Labels
+    private final String[] CLASS_NAMES = {"Cardboard", "Glass", "Metal", "Paper", "Plastic", "Trash"};
 
-    @SuppressLint("MissingInflatedId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Init OpenCV
+        // --- Initialize Firebase Auth ---
+        mAuth = FirebaseAuth.getInstance();
+
         if (!OpenCVLoader.initDebug()) {
-            Toast.makeText(this, "OpenCV failed to load", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "OpenCV initialization failed!", Toast.LENGTH_LONG).show();
         }
 
-        // Initialize UI elements
-        imgPreview = findViewById(R.id.imageView);
-        tvResult = findViewById(R.id.tvResult);
+        // Initialize UI components
+        imageView = findViewById(R.id.imageView);
+        tvPrediction = findViewById(R.id.tvResult);
         etComplaint = findViewById(R.id.etComplaint);
-        btnSubmitComplaint = findViewById(R.id.btnSubmitComplaint);
         Button btnCamera = findViewById(R.id.btnCamera);
         Button btnGallery = findViewById(R.id.btnGallery);
-        btnGetLocation = findViewById(R.id.btnGetLocation);
-        btnDashboard = findViewById(R.id.btnDashboard);
-        btnStatus = findViewById(R.id.btnStatus);
-        btnProfile = findViewById(R.id.btnProfile);
+        Button btnSubmit = findViewById(R.id.btnSubmitComplaint);
+        Button btnGetLocation = findViewById(R.id.btnGetLocation);
+        Button btnDashboard = findViewById(R.id.btnDashboard);
+        Button btnStatus = findViewById(R.id.btnStatus);
+        Button btnProfile = findViewById(R.id.btnProfile);
 
-        // Initialize managers
+        // Initialize helper classes
         complaintManager = new ComplainActivity(this);
         locationHelper = new LocationManagerHelper(this);
 
-        // Ask location permissions
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-            }, 1);
-        }
-
-        // Load ONNX model
         try {
             env = OrtEnvironment.getEnvironment();
             session = env.createSession(getAssets().open("model.onnx").readAllBytes(), new OrtSession.SessionOptions());
         } catch (Exception e) {
+            Toast.makeText(this, "Failed to load ONNX model!", Toast.LENGTH_SHORT).show();
             e.printStackTrace();
-            Toast.makeText(this, "ONNX load failed", Toast.LENGTH_SHORT).show();
         }
 
-        // Camera button
-        btnCamera.setOnClickListener(v -> {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA);
-            } else {
-                Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-                startActivityForResult(intent, REQUEST_CAMERA);
+        requestLocationPermission();
+
+        // --- Create the AuthStateListener ---
+        mAuthListener = firebaseAuth -> {
+            FirebaseUser user = firebaseAuth.getCurrentUser();
+            if (user == null) {
+                // User is signed out. For safety, you could disable submission.
+                // Or simply rely on the check inside saveComplaint().
+                // This is a good place to handle logic if the user gets signed out while on this screen.
+                Toast.makeText(MainActivity.this, "User session not found.", Toast.LENGTH_SHORT).show();
             }
-        });
+            // No action needed if user is signed in, the button click will handle it.
+        };
 
-        // Gallery button
-        btnGallery.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-            startActivityForResult(intent, REQUEST_GALLERY);
-        });
 
-        // Complaint submission
-        btnSubmitComplaint.setOnClickListener(v -> {
-            String complaint = etComplaint.getText().toString().trim();
-            if (!complaint.isEmpty()) {
-                double lat = locationHelper.getLatitude();
-                double lon = locationHelper.getLongitude();
-                String fullComplaint = complaint;
+        // --- Set OnClick Listeners ---
+        btnCamera.setOnClickListener(v -> checkCameraPermissionAndOpen());
+        btnGallery.setOnClickListener(v -> openGallery());
+        btnSubmit.setOnClickListener(v -> submitComplaint());
+        btnGetLocation.setOnClickListener(v -> openLocationInMaps());
 
-                if (lat != 0.0 && lon != 0.0) {
-                    fullComplaint += " | Location: " + lat + ", " + lon;
-                } else {
-                    fullComplaint += " | Location: Not available";
-                }
-
-                complaintManager.saveComplaint(fullComplaint);
-                Toast.makeText(MainActivity.this, "Complaint submitted!", Toast.LENGTH_SHORT).show();
-                etComplaint.setText("");
-            } else {
-                Toast.makeText(MainActivity.this, "Please enter a complaint.", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        // Location button — open maps
-        btnGetLocation.setOnClickListener(v -> {
-            locationHelper.requestLocationUpdates();
-            double lat = locationHelper.getLatitude();
-            double lon = locationHelper.getLongitude();
-
-            if (lat != 0.0 && lon != 0.0) {
-                String uri = "geo:" + lat + "," + lon + "?q=" + lat + "," + lon + "(Reported Location)";
-                Intent mapIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(uri));
-                mapIntent.setPackage("com.google.android.apps.maps");
-                startActivity(mapIntent);
-            } else {
-                Toast.makeText(this, "Fetching location... please wait a few seconds.", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        // Navigation buttons
-        btnDashboard.setOnClickListener(v -> {
-            Intent i = new Intent(MainActivity.this, DashboardActivity.class);
-            startActivity(i);
-        });
-
-        btnStatus.setOnClickListener(v -> {
-            Intent i = new Intent(MainActivity.this, StatusActivity.class);
-            startActivity(i);
-        });
-
-        btnProfile.setOnClickListener(v -> {
-            Intent i = new Intent(MainActivity.this, ProfileActivity.class);
-            startActivity(i);
-        });
+        btnDashboard.setOnClickListener(v -> startActivity(new Intent(this, DashboardActivity.class)));
+        btnStatus.setOnClickListener(v -> startActivity(new Intent(this, StatusActivity.class)));
+        btnProfile.setOnClickListener(v -> startActivity(new Intent(this, ProfileActivity.class)));
     }
 
+    private void submitComplaint() {
+        // --- Added check for login status before submission ---
+        if (mAuth.getCurrentUser() == null) {
+            Toast.makeText(this, "Please wait, session is verifying...", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String complaintText = etComplaint.getText().toString().trim();
+        String prediction = tvPrediction.getText().toString();
+
+        if (TextUtils.isEmpty(complaintText) || imageView.getDrawable() == null) {
+            Toast.makeText(this, "Please capture an image and write a complaint.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        double lat = locationHelper.getLatitude();
+        double lon = locationHelper.getLongitude();
+        String locationInfo = (lat != 0.0 && lon != 0.0) ? "Location: " + lat + ", " + lon : "Location: Not available";
+        String combinedInfo = prediction + " | " + locationInfo;
+
+        complaintManager.saveComplaint(complaintText, combinedInfo);
+
+        etComplaint.setText("");
+        tvPrediction.setText("Prediction will appear here");
+        imageView.setImageResource(android.R.color.transparent);
+    }
+
+    // --- ATTACH AND DETACH THE LISTENER ---
+    @Override
+    public void onStart() {
+        super.onStart();
+        mAuth.addAuthStateListener(mAuthListener);
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        if (mAuthListener != null) {
+            mAuth.removeAuthStateListener(mAuthListener);
+        }
+    }
+
+    // The rest of your MainActivity methods remain unchanged...
+    // onActivityResult, preprocess, runModel, flatten, permission methods, onDestroy, etc.
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -177,26 +179,23 @@ public class MainActivity extends AppCompatActivity {
         Bitmap bitmap = null;
         try {
             if (requestCode == REQUEST_CAMERA) {
-                bitmap = (Bitmap) data.getExtras().get("data");
+                bitmap = (Bitmap) Objects.requireNonNull(data.getExtras()).get("data");
             } else if (requestCode == REQUEST_GALLERY) {
                 Uri imageUri = data.getData();
-                InputStream is = getContentResolver().openInputStream(imageUri);
-                bitmap = BitmapFactory.decodeStream(is);
+                if (imageUri != null) {
+                    InputStream is = getContentResolver().openInputStream(imageUri);
+                    bitmap = BitmapFactory.decodeStream(is);
+                }
             }
 
             if (bitmap != null) {
-                imgPreview.setImageBitmap(bitmap);
-                Bitmap resized = Bitmap.createScaledBitmap(bitmap, IMG_SIZE, IMG_SIZE, true);
-                float[][][][] input = preprocess(resized);
-                runModel(input);
-
-                // Save image info for dashboard
-                String prediction = tvResult.getText().toString();
-                String imageInfo = "Image: " + System.currentTimeMillis() + " | Prediction: " + prediction;
-                complaintManager.saveImageInfo(imageInfo);
+                imageView.setImageBitmap(bitmap);
+                Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, IMG_SIZE, IMG_SIZE, true);
+                float[][][][] preprocessedInput = preprocess(resizedBitmap);
+                runModel(preprocessedInput);
             }
-
         } catch (Exception e) {
+            Toast.makeText(this, "Failed to process image", Toast.LENGTH_SHORT).show();
             e.printStackTrace();
         }
     }
@@ -219,6 +218,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void runModel(float[][][][] input) {
+        if (session == null || env == null) {
+            Toast.makeText(this, "Model is not loaded!", Toast.LENGTH_SHORT).show();
+            return;
+        }
         try {
             OnnxTensor tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(flatten(input)),
                     new long[]{1, 3, IMG_SIZE, IMG_SIZE});
@@ -228,9 +231,10 @@ public class MainActivity extends AppCompatActivity {
             for (int i = 1; i < scores.length; i++) {
                 if (scores[i] > scores[maxIdx]) maxIdx = i;
             }
-            tvResult.setText("Prediction: " + CLASS_NAMES[maxIdx]);
+            tvPrediction.setText("Prediction: " + CLASS_NAMES[maxIdx]);
         } catch (Exception e) {
             e.printStackTrace();
+            tvPrediction.setText("Prediction: Error");
         }
     }
 
@@ -242,5 +246,83 @@ public class MainActivity extends AppCompatActivity {
                 for (int x = 0; x < IMG_SIZE; x++)
                     flat[idx++] = input[0][c][y][x];
         return flat;
+    }
+
+    private void openLocationInMaps() {
+        locationHelper.requestLocationUpdates();
+        double lat = locationHelper.getLatitude();
+        double lon = locationHelper.getLongitude();
+        if (lat != 0.0 && lon != 0.0) {
+            String uri = "geo:" + lat + "," + lon + "?q=" + lat + "," + lon + "(Reported Location)";
+            Intent mapIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(uri));
+            mapIntent.setPackage("com.google.android.apps.maps");
+            if (mapIntent.resolveActivity(getPackageManager()) != null) {
+                startActivity(mapIntent);
+            } else {
+                Toast.makeText(this, "Google Maps is not installed.", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(this, "Fetching location... please wait and try again.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void checkCameraPermissionAndOpen() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
+        } else {
+            openCamera();
+        }
+    }
+
+    private void openCamera() {
+        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        startActivityForResult(intent, REQUEST_CAMERA);
+    }
+
+    private void openGallery() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        startActivityForResult(intent, REQUEST_GALLERY);
+    }
+
+    private void requestLocationPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION
+            }, REQUEST_LOCATION_PERMISSION);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CAMERA_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                openCamera();
+            } else {
+                Toast.makeText(this, "Camera permission is required.", Toast.LENGTH_SHORT).show();
+            }
+        }
+        if (requestCode == REQUEST_LOCATION_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                locationHelper.requestLocationUpdates();
+            } else {
+                Toast.makeText(this, "Location permission is required for full functionality.", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        try {
+            if (session != null) {
+                session.close();
+            }
+            if (env != null) {
+                env.close();
+            }
+        } catch (OrtException e) {
+            e.printStackTrace();
+        }
     }
 }

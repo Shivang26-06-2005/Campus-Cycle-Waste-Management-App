@@ -1,47 +1,104 @@
 package com.example.myapplication;
 
-import android.content.Intent;
 import android.os.Bundle;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.TextView;
+import android.widget.ListView;
+import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DatabaseError;
+import java.util.ArrayList;
 import java.util.List;
 
 public class DashboardActivity extends AppCompatActivity {
 
-    private TextView tvComplaintCount;
-    private Button btnStatus, btnProfile;
+    private ArrayAdapter<String> adapter;
+    private final List<String> complaintDisplayList = new ArrayList<>();
+    private ComplainActivity complaintManager;
+
+    // --- Add Firebase Auth and a Listener ---
+    private FirebaseAuth mAuth;
+    private FirebaseAuth.AuthStateListener mAuthListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_dashboard);
+        setContentView(R.layout.activity_status);
 
-        tvComplaintCount = findViewById(R.id.tvComplaintCount);
-        btnStatus = findViewById(R.id.btnStatus);
-        btnProfile = findViewById(R.id.btnProfile);
+        // --- Initialize Firebase Auth ---
+        mAuth = FirebaseAuth.getInstance();
 
-        // Load number of complaints
-        ComplainActivity complaintManager = new ComplainActivity(this);
-        List<String> complaints = complaintManager.getAllComplaints();
-        tvComplaintCount.setText("Total Complaints: " + complaints.size());
+        complaintManager = new ComplainActivity(this);
+        ListView listView = findViewById(R.id.listComplaints);
+        Button btnBack = findViewById(R.id.btnBack);
 
-        btnStatus.setOnClickListener(v ->
-                startActivity(new Intent(DashboardActivity.this, StatusActivity.class))
-        );
+        adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, complaintDisplayList);
+        listView.setAdapter(adapter);
 
-        btnProfile.setOnClickListener(v ->
-                startActivity(new Intent(DashboardActivity.this, ProfileActivity.class))
-        );
+        btnBack.setOnClickListener(v -> finish());
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
 
-        // Back button in layout
-        Button btnBack = findViewById(R.id.btnBack);
-        btnBack.setOnClickListener(v -> finish());
+        // --- Create the AuthStateListener ---
+        mAuthListener = new FirebaseAuth.AuthStateListener() {
+            @Override
+            public void onAuthStateChanged(@NonNull FirebaseAuth firebaseAuth) {
+                FirebaseUser user = firebaseAuth.getCurrentUser();
+                if (user != null) {
+                    // User is signed in, NOW it is safe to load data.
+                    loadComplaintsFromFirebase();
+                } else {
+                    // User is signed out. Clear the list and show a message.
+                    complaintDisplayList.clear();
+                    adapter.notifyDataSetChanged();
+                    Toast.makeText(DashboardActivity.this, "Please log in to view complaints.", Toast.LENGTH_SHORT).show();
+                }
+            }
+        };
+    }
+
+    private void loadComplaintsFromFirebase() {
+        complaintManager.getAllComplaints(new ComplainActivity.FirebaseDataListener<List<ComplainActivity.Complaint>>() {
+            @Override
+            public void onDataReceived(List<ComplainActivity.Complaint> complaints) {
+                if (complaints.isEmpty()) {
+                    Toast.makeText(DashboardActivity.this, "No complaints have been submitted yet.", Toast.LENGTH_SHORT).show();
+                }
+                complaintDisplayList.clear();
+                for (ComplainActivity.Complaint complaint : complaints) {
+                    complaintDisplayList.add(complaint.toString());
+                }
+                adapter.notifyDataSetChanged();
+            }
+
+            @Override
+            public void onError(DatabaseError databaseError) {
+                Toast.makeText(DashboardActivity.this, "Failed to load complaints.", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    // --- Attach and detach the listener during the activity lifecycle ---
+    @Override
+    public void onStart() {
+        super.onStart();
+        // Attach the listener when the activity starts
+        mAuth.addAuthStateListener(mAuthListener);
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        // Detach the listener when the activity stops
+        if (mAuthListener != null) {
+            mAuth.removeAuthStateListener(mAuthListener);
+        }
     }
 
     @Override
@@ -49,6 +106,4 @@ public class DashboardActivity extends AppCompatActivity {
         finish();
         return true;
     }
-
-    }
-
+}

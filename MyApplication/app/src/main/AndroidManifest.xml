@@ -7,8 +7,8 @@
         android:required="false" />
 
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:remove="true" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:remove="true" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -23,9 +23,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication">
 
-        <!-- LoginActivity becomes launcher -->
+        <!-- =================== THIS IS THE FIX =================== -->
+
+        <!-- 1. RoleSelectionActivity is now the starting activity -->
         <activity
-            android:name=".LoginActivity"
+            android:name=".RoleSelectionActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -33,6 +35,20 @@
             </intent-filter>
         </activity>
 
+        <!-- 2. The intent-filter has been removed from LoginActivity -->
+        <activity
+            android:name=".LoginActivity"
+            android:exported="false" />
+
+        <!-- 3. An entry for RegisterActivity is added -->
+        <activity
+            android:name=".RegisterActivity"
+            android:exported="false" />
+
+        <!-- ================= END OF FIX ================== -->
+
+
+        <!-- Your other existing activities -->
         <activity
             android:name=".MainActivity"
             android:exported="false" />

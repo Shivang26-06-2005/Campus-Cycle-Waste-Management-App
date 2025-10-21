@@ -1,4 +1,6 @@
-// This file is part of OpenCV project.
+plugins {
+    alias(libs.plugins.google.gms.google.services)
+}// This file is part of OpenCV project.
 // It is subject to the license terms in the LICENSE file found in the top-level directory
 // of this distribution and at http://opencv.org/license.html.
 
@@ -157,6 +159,11 @@ android {
         }
     }
 }
-
 dependencies {
+    // Import the Firebase BOM platform. This allows you to use Firebase
+    // libraries without specifying their versions individually.
+    implementation(platform(libs.firebase.bom))
+
+    // Now, this line will work because the BOM provides the version.
+    implementation libs.firebase.database
 }

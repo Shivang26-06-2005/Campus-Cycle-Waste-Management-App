@@ -1,22 +1,41 @@
-<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/loginLayout"
     android:orientation="vertical"
-    android:gravity="center"
-    android:padding="32dp"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:padding="24dp">
 
+    <!-- *** THIS IS THE FIX *** -->
+    <!-- The ID has been changed from etLoginEmail back to etUsername -->
     <EditText
         android:id="@+id/etUsername"
+        android:hint="Username"
+        android:inputType="text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Enter username" />
+        android:layout_marginBottom="12dp"/>
 
+    <EditText
+        android:id="@+id/etPassword"
+        android:hint="Password"
+        android:inputType="textPassword"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="24dp"/>
+
+    <!-- The rest of the buttons -->
     <Button
         android:id="@+id/btnLogin"
+        android:text="Login"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <Button
+        android:id="@+id/btnSignUp"
+        android:text="Sign Up"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Login"
-        android:layout_marginTop="16dp" />
+        android:layout_marginTop="8dp"/>
 
 </LinearLayout>
